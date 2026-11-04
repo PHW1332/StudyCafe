@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/ui/">
+    <File Path="index.html" />
+  </Folder>
+  <Project Path="TaskMain.csproj" />
+</Solution>
