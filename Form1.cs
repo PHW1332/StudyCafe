@@ -66,7 +66,6 @@ namespace TaskMain
                 default:
                     {
                         MessageBox.Show("JS가 보낸 메시지: " + e.TryGetWebMessageAsString());
-                        webView21.CoreWebView2.PostWebMessageAsString(DateTime.Now.ToString("HH:mm:ss"));
                         break;
                     }
             }
