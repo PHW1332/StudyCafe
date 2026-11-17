@@ -914,21 +914,21 @@
         }
 
         btnStart.addEventListener("click", function () {
-            sendMessage("timer:start");
+            sendMessage("timer:Start");
             studyRunning = true;
             showTimerState("running");
             startPomodoro();
         });
 
         btnPause.addEventListener("click", function () {
-            sendMessage("timer:pause");
+            sendMessage("timer:Pause");
             studyRunning = false;
             showTimerState("paused");
             pausePomodoro();
         });
 
         btnStop.addEventListener("click", function () {
-            sendMessage("timer:stop");
+            sendMessage("timer:Stop");
             studyRunning = false;
             showTimerState("idle");
             showStudyTime("00:00:00");
