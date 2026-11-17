@@ -1,0 +1,592 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>공부 타이머</title>
+    <style>
+        /* 화면 전체에 배경을 깔고, 카드와 버튼의 기본 글꼴을 맞춥니다. */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background-color: #e8e1d5;
+            background-image: url("bg.jpg");
+            background-position: center;
+            background-size: cover;
+            background-attachment: fixed;
+            color: #202b27;
+            font-family: '맑은 고딕', sans-serif;
+            font-size: 14px;
+        }
+
+            body.night-background {
+                background-image: url("bg2.jpg");
+            }
+
+        /* 두 카드 묶음과 하단 버튼을 화면 가장자리에 배치합니다. */
+        .left-column, #pomodoroPanel, #iconBar {
+            position: absolute;
+        }
+
+        .left-column {
+            top: 28px;
+            left: 28px;
+            width: 294px;
+            display: grid;
+            gap: 14px;
+        }
+
+        #pomodoroPanel {
+            top: 28px;
+            right: 28px;
+            width: 270px;
+        }
+
+        #iconBar {
+            right: 28px;
+            bottom: 26px;
+            padding: 6px;
+            border-radius: 18px;
+        }
+
+        /* 카드와 버튼의 공통 모양입니다. */
+        .card {
+            padding: 17px 18px;
+            border: 1px solid rgba(85, 70, 48, 0.16);
+            border-radius: 17px;
+            background-color: rgba(250, 245, 235, 0.85);
+            box-shadow: 0 4px 14px rgba(43, 32, 20, 0.18);
+        }
+
+        .card-header, .button-row, .goal-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-header, .goal-line {
+            justify-content: space-between;
+        }
+
+        /* 공부 타이머의 세 버튼은 카드 안에서 같은 폭으로 나란히 둡니다. */
+        #timerPanel .button-row button {
+            flex: 1;
+            padding-inline: 6px;
+        }
+
+        h2, h3, p {
+            margin: 0;
+        }
+
+        h2, h3 {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        button, select {
+            font: inherit;
+            color: inherit;
+            min-height: 34px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+        }
+
+        button {
+            padding: 5px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .primary-button {
+            background-color: #2f5d50;
+            color: #fff;
+            font-weight: 700;
+        }
+
+            .primary-button:hover {
+                background-color: #264c41;
+            }
+
+        .outline-button {
+            border-color: rgba(47, 93, 80, 0.55);
+            background-color: transparent;
+            color: #294e43;
+        }
+
+        .quiet-button {
+            background-color: transparent;
+            color: #294e43;
+        }
+
+            .outline-button:hover:not(:disabled), .quiet-button:hover:not(:disabled) {
+                background-color: rgba(47, 93, 80, 0.10);
+            }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        button:focus-visible, select:focus-visible {
+            outline: 2px solid #2f5d50;
+            outline-offset: 3px;
+        }
+
+        /* 과목 선택과 두 타이머의 숫자 크기입니다. */
+        .subject-picker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        #subject {
+            padding: 3px 5px 3px 8px;
+            border-color: rgba(47, 93, 80, 0.35);
+            background-color: rgba(255, 255, 255, 0.45);
+            cursor: pointer;
+        }
+
+        .clock {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        #time {
+            display: flex;
+            align-items: center;
+            min-height: 75px;
+            font-size: 46px;
+        }
+
+        #pomoTime {
+            font-size: 26px;
+        }
+
+        /* 토글이 켜지면 뽀모도로의 남은 시간을 가장 크게 표시합니다. */
+        .pomodoro-on #time {
+            font-size: 25px;
+            color: #4e5a54;
+        }
+
+        .pomodoro-on #pomoTime {
+            font-size: 48px;
+        }
+
+        /* 오늘 목표의 진행률과 월요일부터 일요일까지의 막대입니다. */
+        .goal-line {
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        #goalPercent {
+            color: #294e43;
+            font-weight: 700;
+        }
+
+        #goalBar {
+            height: 7px;
+            margin-top: 8px;
+            border-radius: 6px;
+            background-color: rgba(47, 93, 80, 0.17);
+        }
+
+        #goalFill {
+            width: 70%;
+            height: 100%;
+            border-radius: inherit;
+            background-color: #2f5d50;
+        }
+
+        .weekly-section {
+            margin-top: 13px;
+            padding-top: 11px;
+            border-top: 1px solid rgba(85, 70, 48, 0.18);
+        }
+
+        #chart, #days {
+            display: flex;
+            gap: 7px;
+        }
+
+        #chart {
+            align-items: flex-end;
+            height: 65px;
+            margin-top: 8px;
+        }
+
+        .bar, #days span {
+            flex: 1;
+        }
+
+        .bar {
+            border-radius: 4px 4px 2px 2px;
+            background-color: #2f5d50;
+        }
+
+            /* 오늘은 크림색과 어울리는 황토색 막대와 굵은 요일로 표시합니다. */
+            .bar.today {
+                background-color: #b17b3d;
+            }
+
+        #days {
+            margin-top: 4px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+            #days .today {
+                color: #724818;
+                font-weight: 700;
+            }
+
+        /* 오른쪽 카드의 켜기/끄기 스위치와 시간 조절 버튼입니다. */
+        .switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            min-width: 63px;
+            min-height: 31px;
+            padding: 3px 7px;
+            border-radius: 20px;
+            background-color: #ded8cc;
+            color: #37443d;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .switch-knob {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: #f9f5eb;
+            box-shadow: 0 0 0 1px rgba(41, 78, 67, 0.18);
+        }
+
+        .switch[aria-checked="true"] {
+            flex-direction: row-reverse;
+            background-color: #2f5d50;
+            color: #fff;
+        }
+
+        .pomo-time-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            min-height: 75px;
+        }
+
+        .step-button {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 12px;
+        }
+
+        .pomo-info {
+            text-align: center;
+            color: #4e5a54;
+            font-size: 12px;
+        }
+
+        #btnSkip {
+            display: block;
+            margin: 12px auto 0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 왼쪽 위에는 공부 타이머와 과목 선택을 배치합니다. -->
+    <main class="left-column">
+        <section class="card" id="timerPanel" aria-labelledby="timerTitle">
+            <div class="card-header">
+                <h2 id="timerTitle">공부 타이머</h2>
+                <label class="subject-picker" for="subject">
+                    과목
+                    <select id="subject">
+                        <option value="" selected disabled>선택</option>
+                        <option value="국어">국어</option>
+                        <option value="영어">영어</option>
+                        <option value="수학">수학</option>
+                    </select>
+                </label>
+            </div>
+            <div class="clock" id="time">--:--:--</div>
+            <div class="button-row">
+                <button class="primary-button" id="btnStart" type="button">시작</button>
+                <button class="outline-button" id="btnPause" type="button">일시정지</button>
+                <button class="quiet-button" id="btnStop" type="button">종료</button>
+            </div>
+        </section>
+
+        <!-- 목표 달성률과 주간 그래프를 같은 카드에 모읍니다. -->
+        <section class="card" id="statsPanel" aria-labelledby="goalTitle">
+            <h2 id="goalTitle">오늘 목표</h2>
+            <div class="goal-line">
+                <p>목표 6시간</p>
+                <span id="goalPercent">70%</span>
+            </div>
+            <div id="goalBar" role="progressbar" aria-labelledby="goalTitle"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="70">
+                <div id="goalFill"></div>
+            </div>
+            <div class="weekly-section">
+                <h3>이번 주</h3>
+                <!-- 실제 주간 기록을 연결하기 전까지는 기존 예시 높이를 사용합니다. -->
+                <div id="chart" aria-hidden="true">
+                    <div class="bar" style="height: 40%"></div>
+                    <div class="bar" style="height: 70%"></div>
+                    <div class="bar" style="height: 55%"></div>
+                    <div class="bar" style="height: 100%"></div>
+                    <div class="bar" style="height: 80%"></div>
+                    <div class="bar" style="height: 30%"></div>
+                    <div class="bar" style="height: 60%"></div>
+                </div>
+                <div id="days">
+                    <span>월</span><span>화</span><span>수</span><span>목</span>
+                    <span>금</span><span>토</span><span>일</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 오른쪽 위에는 뽀모도로의 스위치, 남은 시간, 휴식 조작을 둡니다. -->
+    <section class="card" id="pomodoroPanel" aria-labelledby="pomoTitle">
+        <div class="card-header">
+            <h2 id="pomoTitle">뽀모도로</h2>
+            <button class="switch" id="btn_P" type="button" role="switch"
+                    aria-label="뽀모도로" aria-checked="false">
+                <span class="switch-knob" aria-hidden="true"></span>
+                <span id="pomoSwitchText" aria-hidden="true">OFF</span>
+            </button>
+        </div>
+        <div class="pomo-time-row">
+            <button class="outline-button step-button" id="btnMinus" type="button"
+                    aria-label="집중 시간 5분 줄이기">
+                −5
+            </button>
+            <span class="clock" id="pomoTime">25:00</span>
+            <button class="outline-button step-button" id="btnPlus" type="button"
+                    aria-label="집중 시간 5분 늘리기">
+                +5
+            </button>
+        </div>
+        <p class="pomo-info" id="Pomodoro" aria-live="polite">집중 25분 · 휴식 5분</p>
+        <button class="outline-button" id="btnSkip" type="button" disabled>휴식 건너뛰기</button>
+    </section>
+
+    <!-- 하단에 배경과 설정 버튼을 모읍니다. 집중 버튼은 추후 연결 자리입니다. -->
+    <div class="card button-row" id="iconBar">
+        <button class="quiet-button" id="btnFocus" type="button" disabled>집중</button>
+        <button class="quiet-button" id="btnBg" type="button" aria-label="낮과 밤 배경 전환"
+                aria-pressed="false">
+            배경
+        </button>
+        <button class="outline-button" id="btnSettings" type="button" aria-label="설정">⚙</button>
+    </div>
+
+    <script>
+        /* WebView2에서 열렸을 때 C#으로 문자열 메시지를 보냅니다. */
+        const inWebView = window.chrome && window.chrome.webview;
+
+        function sendMessage(message) {
+        if (inWebView) {
+        window.chrome.webview.postMessage(message);
+        }
+        }
+
+        document.getElementById("btnSettings").addEventListener("click", function () {
+        sendMessage("openSetting");
+        });
+
+        document.getElementById("subject").addEventListener("change", function (event) {
+        sendMessage("subject:" + event.target.value);
+        });
+
+        /* C#에서 받은 공부 시간과 목표 달성률을 화면에 반영합니다. */
+        if (inWebView) {
+        window.chrome.webview.addEventListener("message", function (event) {
+        const msg = event.data;
+        if (typeof msg !== "string") {
+        return;
+        }
+
+        if (msg.startsWith("time:")) {
+        document.getElementById("time").textContent = msg.slice(5);
+        } else if (msg.startsWith("goal:")) {
+        const value = msg.slice(5).trim();
+        const percent = Number(value);
+        if (value !== "" && Number.isFinite(percent)) {
+        const boundedPercent = Math.max(0, Math.min(100, percent));
+        document.getElementById("goalFill").style.width = boundedPercent + "%";
+        document.getElementById("goalPercent").textContent = boundedPercent + "%";
+        document.getElementById("goalBar").setAttribute("aria-valuenow", boundedPercent);
+        }
+        }
+        });
+        }
+
+        /* PC의 요일 값을 월요일부터 시작하는 그래프 순서로 바꿉니다. */
+        const todayIndex = (new Date().getDay() + 6) % 7;
+        document.querySelectorAll("#chart .bar")[todayIndex].classList.add("today");
+        const todayLabel = document.querySelectorAll("#days span")[todayIndex];
+        todayLabel.classList.add("today");
+        todayLabel.setAttribute("aria-current", "date");
+
+        /* 배경 버튼은 같은 폴더의 낮과 밤 이미지 사이를 전환합니다. */
+        const btnBg = document.getElementById("btnBg");
+        btnBg.addEventListener("click", function () {
+        const night = document.body.classList.toggle("night-background");
+        btnBg.setAttribute("aria-pressed", night);
+        });
+
+        /* 뽀모도로 상태는 이 화면에서 관리합니다. 공부 경과 시간은 C#이 보냅니다. */
+        const pomoSwitch = document.getElementById("btn_P");
+        const pomoSwitchText = document.getElementById("pomoSwitchText");
+        const pomoTime = document.getElementById("pomoTime");
+        const pomoInfo = document.getElementById("Pomodoro");
+        const btnMinus = document.getElementById("btnMinus");
+        const btnPlus = document.getElementById("btnPlus");
+        const btnSkip = document.getElementById("btnSkip");
+        const breakMinutes = 5;
+        const totalRounds = 4;
+        let focusMinutes = 25;
+        let remainingSeconds = focusMinutes * 60;
+        let round = 1;
+        let isBreak = false;
+        let pomodoroOn = false;
+        let studyRunning = false;
+        let timerHandle = null;
+        let endsAt = 0;
+
+        /* 켜져 있으면 남은 시간을, 꺼져 있으면 설정한 집중 시간을 표시합니다. */
+        function showRemainingTime() {
+        const displayedSeconds = pomodoroOn ? remainingSeconds : focusMinutes * 60;
+        const minutes = Math.floor(displayedSeconds / 60);
+        const seconds = displayedSeconds % 60;
+        pomoTime.textContent = String(minutes).padStart(2, "0") + ":" +
+        String(seconds).padStart(2, "0");
+        }
+
+        /* 모드, 회차, 버튼의 사용 가능 여부를 현재 상태와 맞춥니다. */
+        function showPomodoroState() {
+        document.body.classList.toggle("pomodoro-on", pomodoroOn);
+        pomoSwitch.setAttribute("aria-checked", String(pomodoroOn));
+        pomoSwitchText.textContent = pomodoroOn ? "ON" : "OFF";
+        showRemainingTime();
+        if (pomodoroOn) {
+        const phase = isBreak ? "휴식 중" : "집중 구간";
+        pomoInfo.textContent = phase + " · " + round + "/" + totalRounds + "회차";
+        } else {
+        pomoInfo.textContent = "집중 " + focusMinutes + "분 · 휴식 " + breakMinutes + "분";
+        }
+
+        const sessionStarted = pomodoroOn &&
+        (studyRunning || isBreak || round > 1 || remainingSeconds < focusMinutes * 60);
+        btnMinus.disabled = sessionStarted || focusMinutes <= 5;
+        btnPlus.disabled = sessionStarted || focusMinutes >= 95;
+        btnSkip.disabled = !pomodoroOn || !isBreak;
+        }
+
+        /* 종료 예정 시각을 기준으로 남은 시간을 계산하고 다음 구간으로 넘어갑니다. */
+        function advancePomodoro() {
+        if (isBreak) {
+        isBreak = false;
+        round = round % totalRounds + 1;
+        remainingSeconds = focusMinutes * 60;
+        } else {
+        isBreak = true;
+        remainingSeconds = breakMinutes * 60;
+        }
+        endsAt = Date.now() + remainingSeconds * 1000;
+        showPomodoroState();
+        }
+
+        function updateCountdown() {
+        remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        if (remainingSeconds === 0) {
+        advancePomodoro();
+        } else {
+        showRemainingTime();
+        }
+        }
+
+        function startPomodoro() {
+        if (pomodoroOn && timerHandle === null) {
+        endsAt = Date.now() + remainingSeconds * 1000;
+        timerHandle = window.setInterval(updateCountdown, 250);
+        }
+        showPomodoroState();
+        }
+
+        function pausePomodoro() {
+        if (timerHandle !== null) {
+        updateCountdown();
+        window.clearInterval(timerHandle);
+        timerHandle = null;
+        }
+        showPomodoroState();
+        }
+
+        function resetPomodoro() {
+        window.clearInterval(timerHandle);
+        timerHandle = null;
+        remainingSeconds = focusMinutes * 60;
+        round = 1;
+        isBreak = false;
+        showPomodoroState();
+        }
+
+        /* 버튼 ID와 메시지 문자열은 C#과 약속한 이름을 사용합니다. */
+        document.getElementById("btnStart").addEventListener("click", function () {
+        sendMessage("timer:start");
+        studyRunning = true;
+        startPomodoro();
+        });
+
+        document.getElementById("btnPause").addEventListener("click", function () {
+        sendMessage("timer:pause");
+        studyRunning = false;
+        pausePomodoro();
+        });
+
+        document.getElementById("btnStop").addEventListener("click", function () {
+        sendMessage("timer:stop");
+        studyRunning = false;
+        resetPomodoro();
+        });
+
+        /* 스위치를 꺼도 남은 시간과 회차를 기억하며, 켜면 진행 상태에 맞춰 이어갑니다. */
+        pomoSwitch.addEventListener("click", function () {
+        pomodoroOn = !pomodoroOn;
+        if (pomodoroOn && studyRunning) {
+        startPomodoro();
+        } else {
+        pausePomodoro();
+        }
+        });
+
+        /* 시작 전에는 집중 시간을 조절하고, 휴식 중에는 다음 회차로 넘길 수 있습니다. */
+        btnMinus.addEventListener("click", function () {
+        focusMinutes -= 5;
+        resetPomodoro();
+        });
+
+        btnPlus.addEventListener("click", function () {
+        focusMinutes += 5;
+        resetPomodoro();
+        });
+
+        btnSkip.addEventListener("click", advancePomodoro);
+    </script>
+</body>
+</html>

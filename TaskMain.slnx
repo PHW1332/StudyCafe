@@ -2,5 +2,5 @@
   <Folder Name="/ui/">
     <File Path="index.html" />
   </Folder>
-  <Project Path="TaskMain.csproj" />
+  <Project Path="TaskMain.csproj" Id="ea56090f-9868-45a9-9441-7f38de32c3da" />
 </Solution>

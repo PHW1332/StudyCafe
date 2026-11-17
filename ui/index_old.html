@@ -1,0 +1,374 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: url("bg.jpg") center / cover;
+            font-family: '맑은 고딕';
+        }
+
+        .card {
+            position: absolute;
+            width: 240px;
+            padding: 16px;
+            background: rgba(250, 245, 235, 0.85);
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        #time {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 8px 0;
+        }
+        #timerPanel {
+            left: 30px;
+            top: 30px;
+        }
+        /* ===== 뽀모도로 패널 ===== */
+        #pomodoroPanel .pomoHeader {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #pomodoroPanel .pomoTitle {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2b2b2b;
+        }
+
+        #pomodoroPanel #Pomodoro {
+            font-size: 11px;
+            color: #2f5d50;
+            background: rgba(47, 93, 80, 0.12);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+            #pomodoroPanel #Pomodoro:empty {
+                display: none;
+            }
+
+        #pomodoroPanel .pomoTimeRow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 14px 0 6px;
+        }
+
+        #pomodoroPanel #pomoTime {
+            font-size: 40px;
+            font-weight: bold;
+            color: #2b2b2b;
+            letter-spacing: 1px;
+        }
+
+        #pomodoroPanel .stepBtn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            background: transparent;
+            color: #2f5d50;
+            border: 1.5px solid #2f5d50;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+            #pomodoroPanel .stepBtn:hover {
+                background: rgba(47, 93, 80, 0.1);
+            }
+
+        #pomodoroPanel .pomoInfo {
+            text-align: center;
+            font-size: 12px;
+            color: #6b6b6b;
+        }
+
+        #pomodoroPanel .pomoButtons {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        #pomodoroPanel #btn_P {
+            flex: 1;
+            padding: 9px 0;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+            #pomodoroPanel #btn_P:hover {
+                background: #264c41;
+            }
+
+        #pomodoroPanel #btnSkip {
+            padding: 9px 12px;
+            font-size: 12px;
+            background: transparent;
+            color: #2f5d50;
+            border: 1.5px solid #2f5d50;
+            cursor: pointer;
+        }
+        #pomodoroPanel {
+            right: 30px;
+            top: 30px;
+        }
+            /* ===== 뽀모도로 패널 ===== */
+            #pomodoroPanel .pomoHeader {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            #pomodoroPanel .pomoTitle {
+                font-size: 14px;
+                font-weight: bold;
+                color: #2b2b2b;
+            }
+
+            #pomodoroPanel #Pomodoro {
+                font-size: 11px;
+                color: #2f5d50;
+                background: rgba(47, 93, 80, 0.12);
+                padding: 2px 8px;
+                border-radius: 10px;
+            }
+
+                #pomodoroPanel #Pomodoro:empty {
+                    display: none;
+                }
+
+            #pomodoroPanel .pomoTimeRow {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 14px 0 6px;
+            }
+
+            #pomodoroPanel #pomoTime {
+                font-size: 40px;
+                font-weight: bold;
+                color: #2b2b2b;
+                letter-spacing: 1px;
+            }
+
+            #pomodoroPanel .stepBtn {
+                width: 36px;
+                height: 36px;
+                padding: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: #2f5d50;
+                border: 1.5px solid #2f5d50;
+                font-size: 13px;
+                font-weight: bold;
+                cursor: pointer;
+            }
+
+                #pomodoroPanel .stepBtn:hover {
+                    background: rgba(47, 93, 80, 0.1);
+                }
+
+            #pomodoroPanel .pomoInfo {
+                text-align: center;
+                font-size: 12px;
+                color: #6b6b6b;
+            }
+
+            #pomodoroPanel .pomoButtons {
+                display: flex;
+                gap: 8px;
+                margin-top: 14px;
+            }
+
+            #pomodoroPanel #btn_P {
+                flex: 1;
+                padding: 9px 0;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+            }
+
+                #pomodoroPanel #btn_P:hover {
+                    background: #264c41;
+                }
+
+            #pomodoroPanel #btnSkip {
+                padding: 9px 12px;
+                font-size: 12px;
+                background: transparent;
+                color: #2f5d50;
+                border: 1.5px solid #2f5d50;
+                cursor: pointer;
+            }
+
+
+        #iconBar {
+            position: absolute; /* 위치 잡기 */
+            right: 30px;
+            bottom: 30px;
+            display: flex; /* 안의 버튼들을 가로로 */
+            gap: 8px; /* 버튼 사이 간격 */
+        }
+
+        #goalBar {
+            height: 8px;
+            background: rgba(0, 0, 0, 0.15); /* 옅은 회색 빈 막대 */
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        #goalFill {
+            height: 100%; /* 바깥 상자 높이를 그대로 따라감 */
+            width: 70%; /* ← 이 숫자가 달성률 */
+            background: #2f5d50;
+            border-radius: 4px;
+        }
+
+        #goalText {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        #statsPanel {
+            left: 30px;
+            bottom: 330px;
+        }
+
+        #chart {
+            display: flex;
+            align-items: flex-end; /* 막대를 아래쪽 기준으로 세움 */
+            gap: 6px;
+            height: 70px; /* 그래프 전체 높이 = 100% 기준 */
+            margin-top: 8px;
+        }
+
+        .bar {
+            flex: 1; /* 일곱 개가 폭을 똑같이 나눠 가짐 */
+            background: #2f5d50;
+            border-radius: 3px 3px 0 0;
+        }
+
+        #days {
+            display: flex;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+            #days span {
+                flex: 1;
+                text-align: center;
+            }
+        button {
+            background: #2f5d50;
+            color: white;
+            border: none;
+            border-radius: 16px;
+            padding: 6px 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="timerPanel">
+        <div>타이머 테스트</div>
+        <div id="time">--:--:--</div>
+        <button id="btnTimer">시작</button>
+        <button id="btnPause">일시정지</button>
+        <button id="btnStop">중단</button>
+        <div id="goalBar">
+            <div id="goalFill"></div>
+        </div>
+        <div id="goalText">오늘 목표 6시간 중 70%</div>
+    </div>
+    <div class="card" id="pomodoroPanel">
+        <div class="pomoHeader">
+            <span class="pomoTitle">뽀모도로</span>
+            <span id="Pomodoro"></span>
+        </div>
+        <div class="pomoTimeRow">
+            <button class="stepBtn" id="btnMinus">−5</button>
+            <span id="pomoTime">25:00</span>
+            <button class="stepBtn" id="btnPlus">+5</button>
+        </div>
+        <div class="pomoInfo">휴식 5분 · 1 / 4회차</div>
+        <div class="pomoButtons">
+            <button id="btn_P">뽀모도로 ON</button>
+            <button id="btnSkip">휴식 건너뛰기</button>
+        </div>
+    </div>
+    <div id="iconBar">
+        <button class="iconBtn" id="btnFocus">집중</button>
+        <button class="iconBtn" id="btnBg">배경</button>
+        <button class="iconBtn" id="btnSettings">⚙</button>
+    </div>
+    <div class="card" id="statsPanel">
+        <div>이번 주</div>
+
+        <div id="chart">
+            <div class="bar" style="height: 40%"></div>
+            <div class="bar" style="height: 70%"></div>
+            <div class="bar" style="height: 55%"></div>
+            <div class="bar" style="height: 100%"></div>
+            <div class="bar" style="height: 80%"></div>
+            <div class="bar" style="height: 30%"></div>
+            <div class="bar" style="height: 60%"></div>
+        </div>
+
+        <div id="days">
+            <span>월</span><span>화</span><span>수</span><span>목</span>
+            <span>금</span><span>토</span><span>일</span>
+        </div>
+    </div>
+    <script>
+        /*설정상자*/
+        document.getElementById("btnSettings").onclick = () =>
+        window.chrome.webview.postMessage("openSetting");
+        /*타이머*/
+        document.getElementById("btnTimer").onclick = () =>
+        window.chrome.webview.postMessage("timer:Start");
+
+        document.getElementById("btnPause").onclick = () =>
+        window.chrome.webview.postMessage("timer:Pause");
+        
+        document.getElementById("btnStop").onclick = () =>
+        window.chrome.webview.postMessage("timer:Stop");
+        
+        window.chrome.webview.addEventListener("message", e => { 
+            const msg = e.data;
+            if (msg.startsWith("time:")) {   
+                document.getElementById("time").textContent = msg.slice(5);
+            }
+        });
+        
+        /*뽀모도로*/ 
+        let pomodoroOn = false;
+        const btnP = document.getElementById("btn_P");
+        btnP.addEventListener("click", function()
+        {
+        pomodoroOn = !pomodoroOn;
+        if (pomodoroOn == false)
+        btnP.textContent = "ON";
+        else
+        btnP.textContent = "OFF";
+        });
+        let backgroundNight = false;
+        const btnB = document.getElementById("btnBg");
+        btnB.addEventListener("click",function() {
+        if (backgroundNight == false) {
+        document.body.style.backgroundImage = 'url("bg2.jpg")';
+        btnB.textContent = "배경(낮)";
+        } else {
+        document.body.style.backgroundImage = 'url("bg.jpg")';
+        btnB.textContent = "배경(밤)";
+        }
+        backgroundNight = !backgroundNight;
+        });
+
+    </script>
+</body>
+</html>
