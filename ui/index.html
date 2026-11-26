@@ -898,6 +898,8 @@
                 if (!studyRunning) {
                     stopCountdown();
                 }
+                /* 공부 중에 집중으로 넘어가면 C# 타이머에도 새 집중 시간을 알려준다 */
+                sendFocusLimit();
             } else {
                 isBreak = true;
                 remainingSeconds = breakMinutes * 60;
@@ -956,8 +958,9 @@
         }
 
         btnStart.addEventListener("click", function () {
-            /* 휴식 중에 '계속'을 누르면 휴식을 끝내고 다음 집중을 시작 */
-            if (pomodoroOn && isBreak) {
+            /* 휴식 중에 '계속'을 누르면 휴식을 끝내고 다음 집중을 시작.
+               스위치가 꺼져 있어도 휴식을 끝내야 휴식 시간이 공부 시간에 섞이지 않는다 */
+            if (isBreak) {
                 advancePomodoro();
             }
             sendMessage("timer:Start");
