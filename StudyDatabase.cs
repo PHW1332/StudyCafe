@@ -139,12 +139,16 @@ namespace TaskMain
             using (SQLiteTransaction transaction = connection.BeginTransaction())
             {
                 long subjectId = GetSubjectId(connection, subject);
+                /* 날짜별로 나눠도 합계가 전체 초와 같도록 시작부터의 누적 초 차이로 계산한다 */
                 DateTime partStart = start;
+                int secondsSoFar = 0;
                 while (partStart < end)
                 {
                     DateTime nextMidnight = partStart.Date.AddDays(1);
                     DateTime partEnd = end < nextMidnight ? end : nextMidnight;
-                    int seconds = (int)Math.Round((partEnd - partStart).TotalSeconds);
+                    int secondsToEnd = (int)Math.Round((partEnd - start).TotalSeconds);
+                    int seconds = secondsToEnd - secondsSoFar;
+                    secondsSoFar = secondsToEnd;
 
                     if (seconds > 0)
                     {

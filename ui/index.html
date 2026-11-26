@@ -687,9 +687,11 @@
 
         let goalMinutes = 360;
 
+        /* 누적 시간이 타이머보다 앞서 보이지 않도록 분 아래는 버린다 */
         function formatDuration(minutes) {
-            const h = Math.floor(minutes / 60);
-            const m = Math.round(minutes % 60);
+            const whole = Math.floor(minutes + 1e-9);
+            const h = Math.floor(whole / 60);
+            const m = whole % 60;
             if (h === 0) {
                 return m + "분";
             }
@@ -697,14 +699,14 @@
         }
 
         function showGoal(percent) {
-            const bounded = Math.max(0, Math.min(100, Math.round(percent)));
+            const bounded = Math.max(0, Math.min(100, Math.floor(percent)));
             document.getElementById("goalFill").style.width = bounded + "%";
             document.getElementById("goalPercent").textContent = bounded + "%";
             document.getElementById("goalBar").setAttribute("aria-valuenow", bounded);
             document.getElementById("goalTarget").textContent = "목표 " + formatDuration(goalMinutes);
             document.getElementById("goalRemain").textContent = bounded >= 100
                 ? "목표 달성"
-                : "약 " + formatDuration(goalMinutes * (100 - bounded) / 100) + " 남음";
+                : "약 " + formatDuration(Math.ceil(goalMinutes * (100 - percent) / 100)) + " 남음";
         }
 
         /* ───── 이번 주 그래프 ───── */

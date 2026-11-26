@@ -39,7 +39,7 @@ namespace TaskMain
                 webView21.CoreWebView2.NavigationCompleted += (sender, args) =>
                 {
                     SendGoalMinutes();
-                    SendStats();
+                    RefreshScreen();
                 };
                 string path = Path.Combine(Application.StartupPath, "ui", "index.html");
                 webView21.CoreWebView2.Navigate(new Uri(path).AbsoluteUri);
@@ -73,27 +73,28 @@ namespace TaskMain
                             Properties.Settings.Default.GoalMinutes = setting.GoalMinutes;
                             Properties.Settings.Default.Save();
                             SendGoalMinutes();
-                            SendStats();
+                            RefreshScreen();
                         }
                         break;
                     }
                 case "timer:Start":
                     {
                         timer.Start(currentSubject);
+                        RefreshScreen();
                         break;
                     }
                 case "timer:Pause":
                     {
                         RunSafely(timer.Pause);
                         ReloadStats();
-                        SendStats();
+                        RefreshScreen();
                         break;
                     }
                 case "timer:Stop":
                     {
                         RunSafely(timer.Stop);
                         ReloadStats();
-                        SendStats();
+                        RefreshScreen();
                         break;
                     }
                 default:
@@ -124,11 +125,12 @@ namespace TaskMain
             RunSafely(() => weekSeconds = db.GetWeekSeconds(statsDate));
         }
 
-        /* 오늘 공부한 시간(초) = DB에 저장된 시간 + 아직 저장 안 한 진행 중인 시간 */
-        private int TodaySeconds()
+        /* 오늘 누적 공부 시간(초) = DB에 저장된 시간 + 타이머의 아직 저장 안 한 시간.
+           타이머가 멈춰 있으면 두 번째 값이 0이라 누적 시간도 멈춘다 */
+        private int TodaySeconds(DateTime now)
         {
-            int todayIndex = (DateTime.Today - StudyDatabase.WeekStart(DateTime.Today)).Days;
-            return weekSeconds[todayIndex] + timer.GetUnsavedSecondsSince(DateTime.Today);
+            int todayIndex = (now.Date - StudyDatabase.WeekStart(now.Date)).Days;
+            return weekSeconds[todayIndex] + timer.GetUnsavedSecondsToday(now);
         }
 
         private void SendGoalMinutes()
@@ -137,25 +139,35 @@ namespace TaskMain
         }
 
         /* 이번 주 그래프(시간 단위)와 오늘 목표 달성률(%)을 화면에 보낸다 */
-        private void SendStats()
+        private void SendStats(DateTime now)
         {
-            if (statsDate != DateTime.Today)
+            if (statsDate != now.Date)
             {
                 ReloadStats();
             }
 
-            int todayIndex = (DateTime.Today - StudyDatabase.WeekStart(DateTime.Today)).Days;
-            int todaySeconds = TodaySeconds();
+            int todayIndex = (now.Date - StudyDatabase.WeekStart(now.Date)).Days;
+            int todaySeconds = TodaySeconds(now);
             string week = string.Join(",", weekSeconds.Select((seconds, index) =>
             {
                 int value = index == todayIndex ? todaySeconds : seconds;
-                return (value / 3600.0).ToString("0.###", CultureInfo.InvariantCulture);
+                return (value / 3600.0).ToString("0.######", CultureInfo.InvariantCulture);
             }));
             PostMessage("week:" + week);
 
             int goalSeconds = Properties.Settings.Default.GoalMinutes * 60;
             double percent = goalSeconds > 0 ? todaySeconds * 100.0 / goalSeconds : 100;
-            PostMessage("goal:" + percent.ToString("0.#", CultureInfo.InvariantCulture));
+            PostMessage("goal:" + percent.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+
+        /* 타이머 시간과 누적 시간을 같은 시각(now)으로 계산해서 함께 보낸다 */
+        private void RefreshScreen()
+        {
+            if (webView21.CoreWebView2 == null) return;
+            DateTime now = DateTime.Now;
+            string text = TimeSpan.FromSeconds(timer.GetElapsedSeconds(now)).ToString(@"hh\:mm\:ss");
+            PostMessage("time:" + text);
+            SendStats(now);
         }
 
         private void PostMessage(string message)
@@ -171,10 +183,7 @@ namespace TaskMain
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            if (webView21.CoreWebView2 == null) return;
-            string text = TimeSpan.FromSeconds(timer.GetElapsedSeconds()).ToString(@"hh\:mm\:ss");
-            PostMessage("time:" + text);
-            SendStats();
+            RefreshScreen();
         }
 
         private void webView21_Click(object sender, EventArgs e)
