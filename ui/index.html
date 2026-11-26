@@ -180,6 +180,11 @@
             color: var(--ink);
         }
 
+        #btnFocus[aria-pressed="true"] {
+            background-color: var(--green);
+            color: var(--on-accent);
+        }
+
         button:disabled {
             opacity: 0.4;
             cursor: default;
@@ -623,9 +628,10 @@
         <button class="outline-button" id="btnSkip" type="button" hidden>휴식 건너뛰기</button>
     </section>
 
-    <!-- 오른쪽 아래: 화면 조작. 집중 버튼은 추후 연결 -->
+    <!-- 오른쪽 아래: 화면 조작 -->
     <div class="card" id="iconBar">
-        <button class="quiet-button" id="btnFocus" type="button" disabled title="준비 중">
+        <button class="quiet-button" id="btnFocus" type="button" aria-pressed="false"
+                title="켜 두면 다른 창으로 갈 때 공부 타이머가 멈춥니다">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.5V3a1 1 0 0 1 1-1h2.5M10.5 2H13a1 1 0 0 1 1 1v2.5M14 10.5V13a1 1 0 0 1-1 1h-2.5M5.5 14H3a1 1 0 0 1-1-1v-2.5"/><circle cx="8" cy="8" r="2"/></svg>
             집중
         </button>
@@ -669,14 +675,20 @@
         const btnPause = document.getElementById("btnPause");
         const btnStop = document.getElementById("btnStop");
         let timerState = "idle";
+        let leftWarning = false;   // 집중 모드 중 다른 창으로 가서 멈췄는지
 
         function showTimerState(state) {
+            if (state === "running") {
+                leftWarning = false;
+            }
             timerState = state;
             document.body.classList.toggle("timer-idle", state === "idle");
             document.body.classList.toggle("timer-running", state === "running");
             document.body.classList.toggle("timer-paused", state === "paused");
             document.getElementById("timerStatus").textContent =
-                state === "running" ? "공부 중" : state === "paused" ? "일시정지" : "대기";
+                state === "running" ? "공부 중"
+                : state === "paused" ? (leftWarning ? "다른 창 이동 감지 · 일시정지" : "일시정지")
+                : "대기";
             btnStart.hidden = state === "running";
             btnPause.hidden = state !== "running";
             btnStart.textContent = state === "paused" ? "계속" : "시작";
@@ -756,7 +768,7 @@
 
         /* 실제 주간 기록을 연결하기 전까지 쓰는 예시 값 */
         showWeek([2.4, 4.2, 3.3, 6, 4.8, 1.8, 3.6]);
-        showGoal(70);
+        showGoal(0);
 
         /* ───── C#에서 오는 메시지 ───── */
 
@@ -766,11 +778,27 @@
             }
             if (msg.startsWith("time:")) {
                 showStudyTime(msg.slice(5));
-            } else if (msg.startsWith("goal:")) {
-                const value = msg.slice(5).trim();
-                if (value !== "" && Number.isFinite(Number(value))) {
-                    showGoal(Number(value));
+            } else if (msg.startsWith("state:")) {
+                /* C#이 멈춘 경우(뽀모도로 휴식, 집중 모드 이탈)도 화면 버튼이 따라가게 */
+                const state = msg.slice(6);
+                if (state !== timerState) {
+                    showTimerState(state);
                 }
+            } else if (msg.startsWith("focus:")) {
+                const value = msg.slice(6);
+                if (value === "left") {
+                    leftWarning = true;
+                    showTimerState(timerState);
+                } else {
+                    btnFocus.setAttribute("aria-pressed", String(value === "on"));
+                }
+            } else if (msg.startsWith("pomo:")) {
+                const parts = msg.split(":");   // ["pomo", "1500", "focus", "1", "on"]
+                showPomo(Number(parts[1]), parts[2] === "rest", Number(parts[3]), parts[4] === "on");
+            } else if (msg.startsWith("goal:")) {
+                const parts = msg.split(":");   // ["goal", "퍼센트", "목표분"]
+                goalMinutes = Number(parts[2]);
+                showGoal(Number(parts[1]));
             }
         }
 
@@ -790,6 +818,11 @@
             sendMessage("subject:" + event.target.value);
         });
 
+        const btnFocus = document.getElementById("btnFocus");
+        btnFocus.addEventListener("click", function () {
+            sendMessage("focus:toggle");
+        });
+
         const btnBg = document.getElementById("btnBg");
         btnBg.addEventListener("click", function () {
             const night = document.body.classList.toggle("night-background");
@@ -797,7 +830,8 @@
         });
 
         /* ───── 뽀모도로 ─────
-           뽀모도로 상태는 이 화면에서 관리. 공부 경과 시간은 C#이 보낸다 */
+           계산은 C#(PomodoroForm)이 하고, 화면은 C#이 보낸 상태를 그리기만 한다
+           C#이 보내는 모양: pomo:남은초:rest|focus:회차:on|off */
         const pomoSwitch = document.getElementById("btn_P");
         const pomoSwitchText = document.getElementById("pomoSwitchText");
         const pomoTime = document.getElementById("pomoTime");
@@ -806,159 +840,77 @@
         const btnMinus = document.getElementById("btnMinus");
         const btnPlus = document.getElementById("btnPlus");
         const btnSkip = document.getElementById("btnSkip");
-        const breakMinutes = 5;
         const totalRounds = 4;
-        let focusMinutes = 25;
-        let remainingSeconds = focusMinutes * 60;
-        let round = 1;
-        let isBreak = false;
-        let pomodoroOn = false;
-        let studyRunning = false;
-        let timerHandle = null;
-        let endsAt = 0;
+        let phaseTotal = 25 * 60;   // 진행 바 계산용: 이번 단계에서 본 가장 큰 남은 초
+        let lastPhase = "";
+        let pomoTouched = false;    // 한 번이라도 켰으면 큰 화면 유지
 
-        /* 켜져 있으면 남은 시간, 꺼져 있으면 설정한 집중 시간을 표시 */
-        function showRemainingTime() {
-            const displayedSeconds = pomodoroOn ? remainingSeconds : focusMinutes * 60;
-            const minutes = Math.floor(displayedSeconds / 60);
-            const seconds = displayedSeconds % 60;
-            pomoTime.textContent = String(minutes).padStart(2, "0") + ":" +
-                                   String(seconds).padStart(2, "0");
-            const phaseSeconds = (isBreak ? breakMinutes : focusMinutes) * 60;
+        function showPomo(remaining, isRest, round, running) {
+            const phaseKey = (isRest ? "rest" : "focus") + round;
+            if (phaseKey !== lastPhase || remaining > phaseTotal) {
+                phaseTotal = remaining;
+                lastPhase = phaseKey;
+            }
+            if (running) {
+                pomoTouched = true;
+            }
+            const active = pomoTouched || isRest;
+
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            pomoTime.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
             document.getElementById("pomoFill").style.width =
-                (1 - remainingSeconds / phaseSeconds) * 100 + "%";
-        }
+                (phaseTotal > 0 ? (1 - remaining / phaseTotal) * 100 : 0) + "%";
 
-        /* 회차를 점으로 그린다 채운 점 = 끝난 회차, 테두리 점 = 지금 회차 */
-        function showRoundDots() {
             pomoDots.textContent = "";
             for (let i = 1; i <= totalRounds; i++) {
                 const dot = document.createElement("i");
-                if (i < round || (i === round && isBreak)) {
+                if (i < round || (i === round && isRest)) {
                     dot.className = "done";
                 } else if (i === round) {
                     dot.className = "now";
                 }
                 pomoDots.appendChild(dot);
             }
-        }
-        function showPomodoroState() {
-            const sessionStarted = pomodoroOn &&
-                (studyRunning || isBreak || round > 1 || remainingSeconds < focusMinutes * 60);
-            document.body.classList.toggle("pomodoro-on", pomodoroOn);
-            document.body.classList.toggle("pomo-started", sessionStarted);
-            document.body.classList.toggle("pomo-break", pomodoroOn && isBreak);
-            pomoSwitch.setAttribute("aria-checked", String(pomodoroOn));
-            pomoSwitchText.textContent = pomodoroOn ? "켜짐" : "꺼짐";
-            showRemainingTime();
-            showRoundDots();
-            if (pomodoroOn) {
-                pomoInfo.textContent = (isBreak ? "휴식" : "집중") + " · " + round + "/" + totalRounds + "회차";
-            } else {
-                pomoInfo.textContent = "집중 " + focusMinutes + "분 · 휴식 " + breakMinutes + "분";
-            }
-            document.getElementById("pomoProgress").hidden = !pomodoroOn;
-            pomoDots.hidden = !pomodoroOn;
-            btnMinus.disabled = sessionStarted || focusMinutes <= 5;
-            btnPlus.disabled = sessionStarted || focusMinutes >= 90;
-            btnSkip.hidden = !pomodoroOn || !isBreak;
-        }
 
-        /* 종료 예정 시각을 기준으로 남은 시간을 계산하고 다음 구간으로 */
-        function advancePomodoro() {
-            if (isBreak) {
-                isBreak = false;
-                round = round % totalRounds + 1;
-                remainingSeconds = focusMinutes * 60;
-            } else {
-                isBreak = true;
-                remainingSeconds = breakMinutes * 60;
-            }
-            endsAt = Date.now() + remainingSeconds * 1000;
-            showPomodoroState();
-        }
-
-        function updateCountdown() {
-            remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-            if (remainingSeconds === 0) {
-                advancePomodoro();
-            } else {
-                showRemainingTime();
-            }
-        }
-
-        function startPomodoro() {
-            if (pomodoroOn && timerHandle === null) {
-                endsAt = Date.now() + remainingSeconds * 1000;
-                timerHandle = window.setInterval(updateCountdown, 250);
-            }
-            showPomodoroState();
-        }
-
-        function pausePomodoro() {
-            if (timerHandle !== null) {
-                updateCountdown();
-                window.clearInterval(timerHandle);
-                timerHandle = null;
-            }
-            showPomodoroState();
-        }
-
-        function resetPomodoro() {
-            window.clearInterval(timerHandle);
-            timerHandle = null;
-            remainingSeconds = focusMinutes * 60;
-            round = 1;
-            isBreak = false;
-            showPomodoroState();
+            document.body.classList.toggle("pomodoro-on", active);
+            document.body.classList.toggle("pomo-started", isRest);
+            document.body.classList.toggle("pomo-break", isRest);
+            pomoSwitch.setAttribute("aria-checked", String(running));
+            pomoSwitchText.textContent = running ? "켜짐" : "꺼짐";
+            pomoInfo.textContent = active
+                ? (isRest ? "휴식" : "집중") + " · " + round + "/" + totalRounds + "회차"
+                : "집중 25분 · 휴식 5분";
+            document.getElementById("pomoProgress").hidden = !active;
+            pomoDots.hidden = !active;
+            btnMinus.disabled = isRest || remaining <= 300;
+            btnPlus.disabled = isRest;
+            btnSkip.hidden = !isRest;
         }
 
         btnStart.addEventListener("click", function () {
-            sendMessage("timer:Start");
-            studyRunning = true;
+            sendMessage("timer:start");
             showTimerState("running");
-            startPomodoro();
         });
 
         btnPause.addEventListener("click", function () {
-            sendMessage("timer:Pause");
-            studyRunning = false;
+            sendMessage("timer:pause");
             showTimerState("paused");
-            pausePomodoro();
         });
 
         btnStop.addEventListener("click", function () {
-            sendMessage("timer:Stop");
-            studyRunning = false;
+            sendMessage("timer:stop");
             showTimerState("idle");
             showStudyTime("00:00:00");
-            resetPomodoro();
         });
 
-        /* 스위치를 꺼도 남은 시간과 회차를 기억함*/
-        pomoSwitch.addEventListener("click", function () {
-            pomodoroOn = !pomodoroOn;
-            if (pomodoroOn && studyRunning) {
-                startPomodoro();
-            } else {
-                pausePomodoro();
-            }
-        });
-
-        btnMinus.addEventListener("click", function () {
-            focusMinutes -= 5;
-            resetPomodoro();
-        });
-
-        btnPlus.addEventListener("click", function () {
-            focusMinutes += 5;
-            resetPomodoro();
-        });
-
-        btnSkip.addEventListener("click", advancePomodoro);
+        pomoSwitch.addEventListener("click", function () { sendMessage("pomo:toggle"); });
+        btnMinus.addEventListener("click", function () { sendMessage("pomo:minus"); });
+        btnPlus.addEventListener("click", function () { sendMessage("pomo:plus"); });
+        btnSkip.addEventListener("click", function () { sendMessage("pomo:skip"); });
 
         showTimerState("idle");
-        showPomodoroState();
+        showPomo(25 * 60, false, 1, false);
     </script>
 </body>
 </html>
