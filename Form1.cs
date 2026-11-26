@@ -62,6 +62,15 @@ namespace TaskMain
                 return;
             }
 
+            /* 뽀모도로 집중 남은 시간(초). "none"이면 제한 없음 */
+            if (message.StartsWith("timer:Limit:"))
+            {
+                string value = message.Substring("timer:Limit:".Length);
+                int seconds;
+                timer.SetLimit(int.TryParse(value, out seconds) ? seconds : (int?)null);
+                return;
+            }
+
             switch (message)
             {
                 case "openSettings":
@@ -86,6 +95,13 @@ namespace TaskMain
                 case "timer:Pause":
                     {
                         RunSafely(timer.Pause);
+                        ReloadStats();
+                        RefreshScreen();
+                        break;
+                    }
+                case "timer:LimitReached":
+                    {
+                        RunSafely(timer.PauseAtLimit);
                         ReloadStats();
                         RefreshScreen();
                         break;

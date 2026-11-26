@@ -883,12 +883,21 @@
             btnSkip.hidden = !pomodoroOn || !isBreak;
         }
 
-        /* 종료 예정 시각을 기준으로 남은 시간을 계산하고 다음 구간으로 */
+        function stopCountdown() {
+            window.clearInterval(timerHandle);
+            timerHandle = null;
+        }
+
+        /* 다음 구간으로. 휴식은 바로 카운트다운하고,
+           휴식이 끝나면 다음 집중은 '계속'을 눌러야 시작한다 */
         function advancePomodoro() {
             if (isBreak) {
                 isBreak = false;
                 round = round % totalRounds + 1;
                 remainingSeconds = focusMinutes * 60;
+                if (!studyRunning) {
+                    stopCountdown();
+                }
             } else {
                 isBreak = true;
                 remainingSeconds = breakMinutes * 60;
@@ -897,12 +906,28 @@
             showPomodoroState();
         }
 
+        /* 집중 시간이 끝나면 공부 타이머를 정한 시간에서 일시정지하고 휴식으로 */
+        function finishFocus() {
+            sendMessage("timer:LimitReached");
+            studyRunning = false;
+            showTimerState("paused");
+            advancePomodoro();
+        }
+
+        /* 공부 타이머가 집중 남은 시간 이상 늘지 않도록 C#에 알려준다 */
+        function sendFocusLimit() {
+            const limited = pomodoroOn && studyRunning && !isBreak;
+            sendMessage("timer:Limit:" + (limited ? remainingSeconds : "none"));
+        }
+
         function updateCountdown() {
             remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-            if (remainingSeconds === 0) {
+            if (remainingSeconds > 0) {
+                showRemainingTime();
+            } else if (isBreak) {
                 advancePomodoro();
             } else {
-                showRemainingTime();
+                finishFocus();
             }
         }
 
@@ -916,16 +941,14 @@
 
         function pausePomodoro() {
             if (timerHandle !== null) {
-                updateCountdown();
-                window.clearInterval(timerHandle);
-                timerHandle = null;
+                remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+                stopCountdown();
             }
             showPomodoroState();
         }
 
         function resetPomodoro() {
-            window.clearInterval(timerHandle);
-            timerHandle = null;
+            stopCountdown();
             remainingSeconds = focusMinutes * 60;
             round = 1;
             isBreak = false;
@@ -933,10 +956,15 @@
         }
 
         btnStart.addEventListener("click", function () {
+            /* 휴식 중에 '계속'을 누르면 휴식을 끝내고 다음 집중을 시작 */
+            if (pomodoroOn && isBreak) {
+                advancePomodoro();
+            }
             sendMessage("timer:Start");
             studyRunning = true;
             showTimerState("running");
             startPomodoro();
+            sendFocusLimit();
         });
 
         btnPause.addEventListener("click", function () {
@@ -957,21 +985,34 @@
         /* 스위치를 꺼도 남은 시간과 회차를 기억함*/
         pomoSwitch.addEventListener("click", function () {
             pomodoroOn = !pomodoroOn;
-            if (pomodoroOn && studyRunning) {
+            if (pomodoroOn && (studyRunning || isBreak)) {
                 startPomodoro();
             } else {
                 pausePomodoro();
             }
+            sendFocusLimit();
         });
 
-        btnMinus.addEventListener("click", function () {
-            focusMinutes -= 5;
+        /* 집중 시간을 바꾸면 그 시간을 쓰려는 것이므로 뽀모도로를 켠다.
+           공부 중이면 지금부터 바꾼 시간만큼 재고 멈춘다 */
+        function changeFocusMinutes(delta) {
+            focusMinutes += delta;
             resetPomodoro();
+            pomodoroOn = true;
+            if (studyRunning) {
+                startPomodoro();
+            } else {
+                showPomodoroState();
+            }
+            sendFocusLimit();
+        }
+
+        btnMinus.addEventListener("click", function () {
+            changeFocusMinutes(-5);
         });
 
         btnPlus.addEventListener("click", function () {
-            focusMinutes += 5;
-            resetPomodoro();
+            changeFocusMinutes(5);
         });
 
         btnSkip.addEventListener("click", advancePomodoro);

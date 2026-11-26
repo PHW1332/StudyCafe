@@ -12,6 +12,7 @@ namespace TaskMain
         private string subject;
         private DateTime segmentStart;  // 지금 재고 있는 구간의 시작 시각
         private int savedSeconds;       // 이번 공부에서 이미 저장한 구간들의 합
+        private int? limitSeconds;      // 뽀모도로: 이 구간에서 잴 수 있는 최대 초. null이면 제한 없음
 
         public StudyTimer(StudyDatabase db)
         {
@@ -28,7 +29,23 @@ namespace TaskMain
             }
             this.subject = subject;
             segmentStart = DateTime.Now;
+            limitSeconds = null;
             IsRunning = true;
+        }
+
+        /// <summary>
+        /// 뽀모도로 집중 시간이 지금부터 secondsFromNow초 남았다고 알려준다. null이면 제한을 없앤다.
+        /// 남은 시간이 지나면 타이머 시간은 더 늘지 않는다.
+        /// </summary>
+        public void SetLimit(int? secondsFromNow)
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+            limitSeconds = secondsFromNow.HasValue
+                ? GetUnsavedSeconds(DateTime.Now) + Math.Max(0, secondsFromNow.Value)
+                : (int?)null;
         }
 
         public void Pause()
@@ -38,7 +55,20 @@ namespace TaskMain
                 return;
             }
             IsRunning = false;
-            SaveSegment(DateTime.Now);
+            SaveSegment(WholeSecondsSinceSegmentStart(DateTime.Now));
+        }
+
+        /// <summary>
+        /// 뽀모도로 집중 시간이 끝났을 때 일시정지한다. 신호가 조금 늦거나 빨라도 정한 시간만큼 정확히 저장한다.
+        /// </summary>
+        public void PauseAtLimit()
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+            IsRunning = false;
+            SaveSegment(limitSeconds ?? WholeSecondsSinceSegmentStart(DateTime.Now));
         }
 
         public void Stop()
@@ -54,7 +84,9 @@ namespace TaskMain
         {
             if (IsRunning && newSubject != subject)
             {
-                segmentStart = SaveSegment(DateTime.Now);
+                int seconds = WholeSecondsSinceSegmentStart(DateTime.Now);
+                segmentStart = SaveSegment(seconds);
+                limitSeconds -= seconds;
             }
             subject = newSubject;
         }
@@ -91,20 +123,21 @@ namespace TaskMain
         }
 
         /// <summary>
-        /// 타이머에 보인 만큼(초 단위 버림)만 저장하고, 저장한 구간의 끝 시각을 돌려준다.
+        /// 구간 시작부터 seconds초를 저장하고, 저장한 구간의 끝 시각을 돌려준다.
         /// </summary>
-        private DateTime SaveSegment(DateTime now)
+        private DateTime SaveSegment(int seconds)
         {
-            int seconds = WholeSecondsSinceSegmentStart(now);
             DateTime end = segmentStart.AddSeconds(seconds);
             savedSeconds += seconds;
             db.SaveSession(subject, segmentStart, end);
             return end;
         }
 
+        /* 구간 시작부터 지난 초(버림). 뽀모도로 제한이 있으면 그 이상 늘지 않는다 */
         private int WholeSecondsSinceSegmentStart(DateTime now)
         {
-            return Math.Max(0, (int)(now - segmentStart).TotalSeconds);
+            int seconds = Math.Max(0, (int)(now - segmentStart).TotalSeconds);
+            return limitSeconds.HasValue ? Math.Min(seconds, limitSeconds.Value) : seconds;
         }
     }
 }
