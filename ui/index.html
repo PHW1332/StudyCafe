@@ -719,7 +719,7 @@
         function showWeek(hours) {
             const chart = document.getElementById("chart");
             const goalHours = goalMinutes / 60;
-            const scale = Math.max(goalHours, ...hours.slice(0, todayIndex + 1));
+            const scale = Math.max(goalHours, ...hours.slice(0, todayIndex + 1)) || 1;
             let total = 0;
             chart.textContent = "";
 
@@ -754,9 +754,11 @@
             document.getElementById("weekTotal").textContent = "합계 " + formatDuration(total * 60);
         }
 
-        /* 실제 주간 기록을 연결하기 전까지 쓰는 예시 값 */
-        showWeek([2.4, 4.2, 3.3, 6, 4.8, 1.8, 3.6]);
-        showGoal(70);
+        /* C#이 DB에서 읽은 값을 보내기 전까지는 0으로 표시 */
+        let weekHours = [0, 0, 0, 0, 0, 0, 0];
+        let goalPercent = 0;
+        showWeek(weekHours);
+        showGoal(goalPercent);
 
         /* ───── C#에서 오는 메시지 ───── */
 
@@ -769,7 +771,22 @@
             } else if (msg.startsWith("goal:")) {
                 const value = msg.slice(5).trim();
                 if (value !== "" && Number.isFinite(Number(value))) {
-                    showGoal(Number(value));
+                    goalPercent = Number(value);
+                    showGoal(goalPercent);
+                }
+            } else if (msg.startsWith("week:")) {
+                /* 월~일 공부 시간(시간 단위)을 쉼표로 구분해서 받음 */
+                const values = msg.slice(5).split(",").map(Number);
+                if (values.length === 7 && values.every(Number.isFinite)) {
+                    weekHours = values;
+                    showWeek(weekHours);
+                }
+            } else if (msg.startsWith("goalMinutes:")) {
+                const value = Number(msg.slice(12));
+                if (Number.isFinite(value) && value >= 0) {
+                    goalMinutes = value;
+                    showGoal(goalPercent);
+                    showWeek(weekHours);
                 }
             }
         }
