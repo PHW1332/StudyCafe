@@ -687,9 +687,11 @@
 
         let goalMinutes = 360;
 
+        /* 누적 시간이 타이머보다 앞서 보이지 않도록 분 아래는 버린다 */
         function formatDuration(minutes) {
-            const h = Math.floor(minutes / 60);
-            const m = Math.round(minutes % 60);
+            const whole = Math.floor(minutes + 1e-9);
+            const h = Math.floor(whole / 60);
+            const m = whole % 60;
             if (h === 0) {
                 return m + "분";
             }
@@ -697,14 +699,14 @@
         }
 
         function showGoal(percent) {
-            const bounded = Math.max(0, Math.min(100, Math.round(percent)));
+            const bounded = Math.max(0, Math.min(100, Math.floor(percent)));
             document.getElementById("goalFill").style.width = bounded + "%";
             document.getElementById("goalPercent").textContent = bounded + "%";
             document.getElementById("goalBar").setAttribute("aria-valuenow", bounded);
             document.getElementById("goalTarget").textContent = "목표 " + formatDuration(goalMinutes);
             document.getElementById("goalRemain").textContent = bounded >= 100
                 ? "목표 달성"
-                : "약 " + formatDuration(goalMinutes * (100 - bounded) / 100) + " 남음";
+                : "약 " + formatDuration(Math.ceil(goalMinutes * (100 - percent) / 100)) + " 남음";
         }
 
         /* ───── 이번 주 그래프 ───── */
@@ -719,7 +721,7 @@
         function showWeek(hours) {
             const chart = document.getElementById("chart");
             const goalHours = goalMinutes / 60;
-            const scale = Math.max(goalHours, ...hours.slice(0, todayIndex + 1));
+            const scale = Math.max(goalHours, ...hours.slice(0, todayIndex + 1)) || 1;
             let total = 0;
             chart.textContent = "";
 
@@ -754,9 +756,11 @@
             document.getElementById("weekTotal").textContent = "합계 " + formatDuration(total * 60);
         }
 
-        /* 실제 주간 기록을 연결하기 전까지 쓰는 예시 값 */
-        showWeek([2.4, 4.2, 3.3, 6, 4.8, 1.8, 3.6]);
-        showGoal(70);
+        /* C#이 DB에서 읽은 값을 보내기 전까지는 0으로 표시 */
+        let weekHours = [0, 0, 0, 0, 0, 0, 0];
+        let goalPercent = 0;
+        showWeek(weekHours);
+        showGoal(goalPercent);
 
         /* ───── C#에서 오는 메시지 ───── */
 
@@ -769,7 +773,22 @@
             } else if (msg.startsWith("goal:")) {
                 const value = msg.slice(5).trim();
                 if (value !== "" && Number.isFinite(Number(value))) {
-                    showGoal(Number(value));
+                    goalPercent = Number(value);
+                    showGoal(goalPercent);
+                }
+            } else if (msg.startsWith("week:")) {
+                /* 월~일 공부 시간(시간 단위)을 쉼표로 구분해서 받음 */
+                const values = msg.slice(5).split(",").map(Number);
+                if (values.length === 7 && values.every(Number.isFinite)) {
+                    weekHours = values;
+                    showWeek(weekHours);
+                }
+            } else if (msg.startsWith("goalMinutes:")) {
+                const value = Number(msg.slice(12));
+                if (Number.isFinite(value) && value >= 0) {
+                    goalMinutes = value;
+                    showGoal(goalPercent);
+                    showWeek(weekHours);
                 }
             }
         }
@@ -864,12 +883,23 @@
             btnSkip.hidden = !pomodoroOn || !isBreak;
         }
 
-        /* 종료 예정 시각을 기준으로 남은 시간을 계산하고 다음 구간으로 */
+        function stopCountdown() {
+            window.clearInterval(timerHandle);
+            timerHandle = null;
+        }
+
+        /* 다음 구간으로. 휴식은 바로 카운트다운하고,
+           휴식이 끝나면 다음 집중은 '계속'을 눌러야 시작한다 */
         function advancePomodoro() {
             if (isBreak) {
                 isBreak = false;
                 round = round % totalRounds + 1;
                 remainingSeconds = focusMinutes * 60;
+                if (!studyRunning) {
+                    stopCountdown();
+                }
+                /* 공부 중에 집중으로 넘어가면 C# 타이머에도 새 집중 시간을 알려준다 */
+                sendFocusLimit();
             } else {
                 isBreak = true;
                 remainingSeconds = breakMinutes * 60;
@@ -878,12 +908,28 @@
             showPomodoroState();
         }
 
+        /* 집중 시간이 끝나면 공부 타이머를 정한 시간에서 일시정지하고 휴식으로 */
+        function finishFocus() {
+            sendMessage("timer:LimitReached");
+            studyRunning = false;
+            showTimerState("paused");
+            advancePomodoro();
+        }
+
+        /* 공부 타이머가 집중 남은 시간 이상 늘지 않도록 C#에 알려준다 */
+        function sendFocusLimit() {
+            const limited = pomodoroOn && studyRunning && !isBreak;
+            sendMessage("timer:Limit:" + (limited ? remainingSeconds : "none"));
+        }
+
         function updateCountdown() {
             remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-            if (remainingSeconds === 0) {
+            if (remainingSeconds > 0) {
+                showRemainingTime();
+            } else if (isBreak) {
                 advancePomodoro();
             } else {
-                showRemainingTime();
+                finishFocus();
             }
         }
 
@@ -897,16 +943,14 @@
 
         function pausePomodoro() {
             if (timerHandle !== null) {
-                updateCountdown();
-                window.clearInterval(timerHandle);
-                timerHandle = null;
+                remainingSeconds = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+                stopCountdown();
             }
             showPomodoroState();
         }
 
         function resetPomodoro() {
-            window.clearInterval(timerHandle);
-            timerHandle = null;
+            stopCountdown();
             remainingSeconds = focusMinutes * 60;
             round = 1;
             isBreak = false;
@@ -914,10 +958,16 @@
         }
 
         btnStart.addEventListener("click", function () {
+            /* 휴식 중에 '계속'을 누르면 휴식을 끝내고 다음 집중을 시작.
+               스위치가 꺼져 있어도 휴식을 끝내야 휴식 시간이 공부 시간에 섞이지 않는다 */
+            if (isBreak) {
+                advancePomodoro();
+            }
             sendMessage("timer:Start");
             studyRunning = true;
             showTimerState("running");
             startPomodoro();
+            sendFocusLimit();
         });
 
         btnPause.addEventListener("click", function () {
@@ -938,21 +988,34 @@
         /* 스위치를 꺼도 남은 시간과 회차를 기억함*/
         pomoSwitch.addEventListener("click", function () {
             pomodoroOn = !pomodoroOn;
-            if (pomodoroOn && studyRunning) {
+            if (pomodoroOn && (studyRunning || isBreak)) {
                 startPomodoro();
             } else {
                 pausePomodoro();
             }
+            sendFocusLimit();
         });
 
-        btnMinus.addEventListener("click", function () {
-            focusMinutes -= 5;
+        /* 집중 시간을 바꾸면 그 시간을 쓰려는 것이므로 뽀모도로를 켠다.
+           공부 중이면 지금부터 바꾼 시간만큼 재고 멈춘다 */
+        function changeFocusMinutes(delta) {
+            focusMinutes += delta;
             resetPomodoro();
+            pomodoroOn = true;
+            if (studyRunning) {
+                startPomodoro();
+            } else {
+                showPomodoroState();
+            }
+            sendFocusLimit();
+        }
+
+        btnMinus.addEventListener("click", function () {
+            changeFocusMinutes(-5);
         });
 
         btnPlus.addEventListener("click", function () {
-            focusMinutes += 5;
-            resetPomodoro();
+            changeFocusMinutes(5);
         });
 
         btnSkip.addEventListener("click", advancePomodoro);
